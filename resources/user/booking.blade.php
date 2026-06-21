@@ -3,6 +3,67 @@
 @section('title', 'Booking Servis Motor - Jadwalkan Perawatan Motor Anda')
 @section('meta_description', 'Booking jadwal servis motor Anda secara online. Cepat, mudah, dan bebas antre.')
 
+@section('styles')
+<style>
+    .garage-select-card {
+        border: 2px solid var(--border-color);
+        background-color: var(--bg-secondary);
+        border-radius: var(--radius-sm);
+        padding: 16px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        transition: all var(--transition-fast);
+    }
+    
+    [data-theme="dark"] .garage-select-card {
+        background-color: var(--bg-tertiary);
+    }
+    
+    .garage-select-card:hover {
+        border-color: var(--text-muted);
+        transform: translateY(-2px);
+    }
+    
+    .garage-select-card.selected {
+        border-color: var(--accent);
+        background-color: var(--accent-light);
+    }
+    
+    .garage-select-card-icon {
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        background-color: rgba(90, 82, 229, 0.08);
+        color: var(--accent);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+    
+    .garage-select-card.selected .garage-select-card-icon {
+        background-color: var(--accent);
+        color: white;
+    }
+    
+    .garage-select-card-info h5 {
+        font-family: var(--font-heading);
+        font-size: 0.95rem;
+        font-weight: 700;
+        margin: 0 0 2px 0;
+        color: var(--text-primary);
+    }
+    
+    .garage-select-card-info p {
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+        margin: 0;
+    }
+</style>
+@endsection
+
 @section('content')
     <!-- Main Section -->
     <main class="section" style="padding-top: 140px; min-height: 80vh;">
@@ -155,6 +216,14 @@
                         <!-- STEP 2: PILIH SLOT & ISI DETAIL (Frame 16) -->
                         <div class="step-panel" id="panel-step-2" style="display: none;">
                             <h3 style="font-family: var(--font-heading); font-size: 1.25rem; font-weight: 700; margin-bottom: 20px; border-left: 4px solid var(--accent); padding-left: 10px;">Pilih Slot & Isi Detail</h3>
+                            
+                            <!-- Garage Selection Wrapper -->
+                            <div id="booking-garage-container" style="margin-bottom: 30px;">
+                                <label style="display: block; font-size: 0.85rem; font-weight: 700; text-transform: uppercase; color: var(--text-secondary); margin-bottom: 12px;">PILIH DARI GARASI</label>
+                                <div id="booking-garage-list" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 16px;">
+                                    <!-- Dynamic garage options will be loaded here -->
+                                </div>
+                            </div>
                             
                             <div class="form-group-row">
                                 <div class="form-group">
@@ -426,5 +495,124 @@
         // Reinitialize Lucide Icons for dynamic check marks
         lucide.createIcons();
     }
+
+    // Scoped storage key using the logged-in user
+    const authenticatedUser = "@auth {{ auth()->user()->username }} @else guest @endauth".trim();
+    const garageStorageKey = `garage_user_${authenticatedUser}`;
+    
+    // Load motors from local storage
+    let userMotors = [];
+    try {
+        const stored = localStorage.getItem(garageStorageKey);
+        if (stored) {
+            userMotors = JSON.parse(stored);
+        }
+    } catch(e) {
+        console.error("Gagal membaca data garasi", e);
+    }
+    
+    function initBookingGarage() {
+        const listContainer = document.getElementById('booking-garage-list');
+        const sectionContainer = document.getElementById('booking-garage-container');
+        if (!listContainer || !sectionContainer) return;
+        
+        if (userMotors.length === 0) {
+            sectionContainer.innerHTML = `
+                <div style="background-color: var(--bg-tertiary); border: 1px dashed var(--border-color); border-radius: var(--radius-sm); padding: 16px; display: flex; align-items: center; gap: 12px; font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 24px;">
+                    <i data-lucide="info" style="width: 20px; height: 20px; color: var(--accent); flex-shrink: 0;"></i>
+                    <span><strong>Tips:</strong> Anda belum memiliki motor di garasi. Simpan motor Anda di dashboard untuk pemesanan berikutnya yang lebih cepat!</span>
+                </div>
+            `;
+            lucide.createIcons();
+            return;
+        }
+        
+        let html = '';
+        userMotors.forEach((motor, index) => {
+            let brandColor = 'var(--accent)';
+            if (motor.brand === 'Honda') brandColor = '#ef4444';
+            else if (motor.brand === 'Yamaha') brandColor = '#3b82f6';
+            else if (motor.brand === 'Suzuki') brandColor = '#f59e0b';
+            else if (motor.brand === 'Kawasaki') brandColor = '#10b981';
+            
+            html += `
+                <div class="garage-select-card" onclick="selectGarageMotor(${index}, this)">
+                    <div class="garage-select-card-icon" style="color: ${brandColor};">
+                        <i data-lucide="shield" style="width: 18px; height: 18px;"></i>
+                    </div>
+                    <div class="garage-select-card-info">
+                        <h5 style="color: var(--text-primary);">${motor.brand} ${motor.model}</h5>
+                        <p>${motor.plate}</p>
+                    </div>
+                </div>
+            `;
+        });
+        
+        html += `
+            <div class="garage-select-card selected" id="card-use-other" onclick="selectOtherMotor(this)">
+                <div class="garage-select-card-icon">
+                    <i data-lucide="plus-circle" style="width: 18px; height: 18px;"></i>
+                </div>
+                <div class="garage-select-card-info">
+                    <h5 style="color: var(--text-primary);">Gunakan Motor Lain</h5>
+                    <p>Ketik detail manual</p>
+                </div>
+            </div>
+        `;
+        
+        listContainer.innerHTML = html;
+        lucide.createIcons();
+    }
+    
+    window.selectGarageMotor = function(index, cardElement) {
+        document.querySelectorAll('.garage-select-card').forEach(card => {
+            card.classList.remove('selected');
+        });
+        cardElement.classList.add('selected');
+        
+        const motor = userMotors[index];
+        const brandSelect = document.getElementById('motor_brand');
+        const modelInput = document.getElementById('motor_model');
+        const plateInput = document.getElementById('license_plate');
+        
+        if (brandSelect) {
+            let optExists = false;
+            for(let i=0; i<brandSelect.options.length; i++) {
+                if(brandSelect.options[i].value === motor.brand) {
+                    brandSelect.selectedIndex = i;
+                    optExists = true;
+                    break;
+                }
+            }
+            if(!optExists) {
+                const opt = document.createElement('option');
+                opt.value = motor.brand;
+                opt.text = motor.brand;
+                brandSelect.add(opt);
+                brandSelect.value = motor.brand;
+            }
+        }
+        if (modelInput) modelInput.value = motor.model;
+        if (plateInput) plateInput.value = motor.plate;
+    };
+    
+    window.selectOtherMotor = function(cardElement) {
+        document.querySelectorAll('.garage-select-card').forEach(card => {
+            card.classList.remove('selected');
+        });
+        cardElement.classList.add('selected');
+        
+        const brandSelect = document.getElementById('motor_brand');
+        const modelInput = document.getElementById('motor_model');
+        const plateInput = document.getElementById('license_plate');
+        
+        if (brandSelect) brandSelect.value = '';
+        if (modelInput) modelInput.value = '';
+        if (plateInput) plateInput.value = '';
+    };
+    
+    document.addEventListener('DOMContentLoaded', () => {
+        initBookingGarage();
+    });
 </script>
 @endsection
